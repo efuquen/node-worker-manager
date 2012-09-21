@@ -1,0 +1,14 @@
+{
+    "name": "livestream-worker-manager"
+  , "version": "0.0.1"
+  , "private": true
+  , "dependencies": {
+      "express":  "2.4.3"
+    , "forever-monitor": "1.1.x"
+    , "gearnode": "0.1.x"
+    , "inotify-plusplus":  "1.0.x"
+  }
+  , "scripts": {
+     "test": "vows test/*-test.js"
+  }
+}
