@@ -2,6 +2,7 @@ var inotify = require('inotify-plusplus').create(true)
 var fs = require('fs')
 var forever = require('forever-monitor')
 var _ = require('underscore')
+var express = require('express')
 
 var runningChildren = {}
 var configDir = process.env.CONFIG_DIR || "./config/workers"
@@ -14,7 +15,6 @@ function handleInotifyEvent(ev, filepathHandler) {
     var filename = ev.name
     var dir = ev.watch
     var filepath = dir + "/" + filename
-    console.log(filepath)
     if( !_.contains(ev.masks, "create") ||
         !runningChildren.hasOwnProperty(filepath)
     ) {
@@ -24,9 +24,16 @@ function handleInotifyEvent(ev, filepathHandler) {
 }
 
 function startWorker(filepath) {
-  var dataStr = fs.readFileSync(filepath, "utf8")
-  var child_config = JSON.parse(dataStr)
+  var child_config = {} 
   var options = {}
+  try {
+    var dataStr = fs.readFileSync(filepath, "utf8")
+    child_config = JSON.parse(dataStr)
+  } catch (e) {
+    console.log('Error parsing worker config: ' + filepath)
+    console.log(e)
+    return
+  }
   if( child_config.hasOwnProperty("options") &&
       (typeof child_config.options == "object")
   ) {
@@ -81,9 +88,22 @@ var directive = {
   create: function(ev) { handleInotifyEvent(ev, startWorker) },
   delete: function(ev) { handleInotifyEvent(ev, stopWorker) },
   attrib: function(ev) { handleInotifyEvent(ev, restartWorker) },
-  modify: function(ev) { handleInotifyEvent(ev, reloadWorker) }
+  modify: function(ev) { handleInotifyEvent(ev, reloadWorker) },
+  moved_from: function(ev) { handleInotifyEvent(ev, stopWorker) },
+  moved_to: function(ev) { handleInotifyEvent(ev, startWorker) }
 }
 var options =  {}
 inotify.watch(directive, configDir, options)
 
+var app = express()
+app.get("/processes",  function(req, res) {
+  var processList = _.map(runningChildren, function(value, key) {
+    var processInfo = { }
+    processInfo.configpath = key
+    processInfo.uid = value.uid
+    return processInfo
+  })
+  res.send(JSON.stringify(processList))
+})
+app.listen(3000)
 console.log("started worker manager")
